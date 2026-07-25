@@ -1,0 +1,1234 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>PiPoMoBa — Beta</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&family=DM+Mono&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+<style>
+:root {
+  --bg: #0d0d0d;
+  --surface: #161616;
+  --surface2: #1e1e1e;
+  --border: #252525;
+  --text: #f0ede6;
+  --muted: #666;
+  --accent: #e8ff3f;
+  --red: #ff4c4c;
+  --green: #4cff91;
+  --pending: #aaa055;
+  --nav-h: 65px;
+  --header-h: 56px;
+}
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html, body { height:100%; background:var(--bg); color:var(--text); font-family:'DM Sans',sans-serif; font-size:15px; overflow:hidden; }
+
+/* SCREENS */
+.screen { position:fixed; inset:0; display:none; flex-direction:column; }
+.screen.active { display:flex; }
+
+/* LOGIN */
+#screen-login { align-items:center; justify-content:center; gap:0; }
+.login-logo { width:80px; height:80px; background:var(--accent); border-radius:20px; display:flex; align-items:center; justify-content:center; font-size:40px; margin-bottom:24px; }
+.login-title { font-family:'Bebas Neue',sans-serif; font-size:44px; line-height:1; text-align:center; margin-bottom:6px; }
+.login-title span { color:var(--accent); display:block; }
+.login-sub { font-size:13px; color:var(--muted); text-align:center; margin-bottom:48px; line-height:1.5; }
+.btn-google { display:flex; align-items:center; gap:12px; padding:14px 28px; background:#fff; color:#333; border-radius:12px; font-size:15px; font-weight:500; cursor:pointer; border:none; font-family:'DM Sans',sans-serif; }
+.btn-google:active { transform:scale(0.98); }
+
+/* SETUP */
+#screen-setup { align-items:center; justify-content:center; padding:30px; gap:16px; }
+.setup-title { font-family:'Bebas Neue',sans-serif; font-size:32px; text-align:center; line-height:1.1; }
+.setup-title span { color:var(--accent); }
+
+/* MAIN APP */
+#screen-app { overflow:hidden; }
+.app-header { height:var(--header-h); display:flex; align-items:center; justify-content:space-between; padding:0 20px; border-bottom:1px solid var(--border); flex-shrink:0; }
+.app-header-title { font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:1px; }
+.icon-btn { width:36px; height:36px; border-radius:50%; background:var(--surface); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:16px; cursor:pointer; position:relative; }
+.badge { position:absolute; top:-3px; right:-3px; width:16px; height:16px; background:var(--red); border-radius:50%; font-size:9px; display:flex; align-items:center; justify-content:center; color:#fff; font-family:'DM Mono',monospace; }
+
+/* NOTIFICATION BANNER */
+.notif-banner { background:#1a1200; border-bottom:1px solid #3a2800; padding:10px 20px; display:none; align-items:center; gap:10px; cursor:pointer; flex-shrink:0; }
+.notif-banner.visible { display:flex; }
+.notif-banner-text { flex:1; font-size:13px; color:#ffaa33; }
+.notif-banner-count { font-family:'Bebas Neue',sans-serif; font-size:20px; color:#ffaa33; }
+
+/* TABS */
+.tab-content { flex:1; overflow:hidden; position:relative; }
+.tab { position:absolute; inset:0; overflow-y:auto; -webkit-overflow-scrolling:touch; display:none; padding-bottom:calc(var(--nav-h) + 20px); }
+.tab.active { display:block; }
+
+/* BOTTOM NAV */
+.bottom-nav { height:var(--nav-h); display:flex; border-top:1px solid var(--border); background:var(--bg); flex-shrink:0; padding-bottom:env(safe-area-inset-bottom); }
+.nav-item { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; cursor:pointer; color:var(--muted); font-size:9px; letter-spacing:0.5px; text-transform:uppercase; }
+.nav-item.active { color:var(--accent); }
+.nav-icon { font-size:20px; line-height:1; }
+
+/* SECTIONS */
+.section-header { display:flex; align-items:center; justify-content:space-between; padding:16px 20px 8px; }
+.section-label { font-size:9px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); }
+.balance-block { padding:4px 20px 8px; }
+.balance-row { display:flex; justify-content:space-between; align-items:center; padding:5px 0; border-bottom:1px solid var(--border); }
+.balance-row:last-child { border-bottom:none; }
+.balance-currency { font-size:12px; color:var(--muted); font-family:'DM Mono',monospace; }
+.balance-amount { font-family:'DM Mono',monospace; font-size:15px; font-weight:500; }
+.balance-amount.red { color:var(--red); }
+.balance-amount.green { color:var(--green); }
+.balance-amount.pending { color:var(--pending); font-style:italic; }
+.divider { height:1px; background:var(--border); margin:8px 20px; }
+.thick-divider { height:8px; background:#111; margin:8px 0; }
+
+/* TX LIST */
+.tx-list { padding:0 20px; }
+.tx-item { display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--border); cursor:pointer; }
+.tx-item:last-child { border-bottom:none; }
+.tx-avatar { width:38px; height:38px; border-radius:50%; background:var(--surface); display:flex; align-items:center; justify-content:center; font-family:'Bebas Neue',sans-serif; font-size:14px; color:var(--accent); flex-shrink:0; border:1px solid var(--border); overflow:hidden; }
+.tx-avatar img { width:100%; height:100%; object-fit:cover; }
+.tx-info { flex:1; min-width:0; }
+.tx-name { font-size:14px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tx-meta { font-size:11px; color:var(--muted); margin-top:2px; }
+.tx-meta.pending-text { color:var(--pending); }
+.tx-amount-col { text-align:right; flex-shrink:0; }
+.tx-amount { font-family:'DM Mono',monospace; font-size:14px; }
+.tx-amount.red { color:var(--red); }
+.tx-amount.green { color:var(--green); }
+.tx-amount.pending-amt { color:var(--pending); font-style:italic; }
+.tx-cur { font-size:10px; color:var(--muted); display:block; text-align:right; }
+
+/* CONTACTS */
+.search-bar { display:flex; align-items:center; gap:10px; padding:12px 20px; border-bottom:1px solid var(--border); }
+.search-input { flex:1; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:9px 14px; color:var(--text); font-size:14px; font-family:'DM Sans',sans-serif; outline:none; }
+.search-input:focus { border-color:var(--accent); }
+.search-input::placeholder { color:var(--muted); }
+.contact-item { display:flex; align-items:center; gap:12px; padding:12px 20px; border-bottom:1px solid var(--border); cursor:pointer; }
+.contact-item:active { background:var(--surface); }
+.contact-info { flex:1; min-width:0; }
+.contact-name { font-size:15px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.contact-email { font-size:11px; color:var(--muted); margin-top:2px; }
+.saldo-chip { font-family:'DM Mono',monospace; font-size:12px; padding:3px 8px; border-radius:12px; white-space:nowrap; }
+.saldo-chip.red { background:#1f0a0a; color:var(--red); }
+.saldo-chip.green { background:#0a1f0a; color:var(--green); }
+.saldo-chip.zero { background:var(--surface); color:var(--muted); }
+.fab-container { position:fixed; bottom:calc(var(--nav-h) + 20px); right:20px; z-index:100; }
+.fab { width:52px; height:52px; border-radius:50%; background:var(--accent); color:#000; border:none; font-size:26px; display:flex; align-items:center; justify-content:center; cursor:pointer; box-shadow:0 4px 20px rgba(232,255,63,0.3); }
+.fab:active { transform:scale(0.95); }
+
+/* PROFILE */
+.profile-header { display:flex; align-items:center; gap:14px; padding:20px; border-bottom:1px solid var(--border); }
+.profile-avatar-big { width:56px; height:56px; border-radius:50%; background:var(--surface); border:2px solid var(--accent); display:flex; align-items:center; justify-content:center; font-family:'Bebas Neue',sans-serif; font-size:22px; color:var(--accent); overflow:hidden; flex-shrink:0; }
+.profile-avatar-big img { width:100%; height:100%; object-fit:cover; }
+.profile-name { font-family:'Bebas Neue',sans-serif; font-size:22px; }
+.profile-email { font-size:12px; color:var(--muted); margin-top:2px; }
+.settings-item { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid var(--border); cursor:pointer; }
+.settings-item:active { background:var(--surface); }
+.settings-item-left { display:flex; align-items:center; gap:12px; font-size:14px; }
+.settings-icon { font-size:18px; width:24px; text-align:center; }
+.settings-value { font-size:13px; color:var(--muted); }
+.btn-danger { margin:20px; padding:14px; background:#1f0a0a; color:var(--red); border:1px solid #3f1a1a; border-radius:12px; width:calc(100% - 40px); cursor:pointer; font-family:'DM Sans',sans-serif; font-size:14px; }
+
+/* PANELS */
+.panel-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:200; display:none; align-items:flex-end; }
+.panel-overlay.visible { display:flex; }
+.panel { width:100%; background:var(--bg); border-radius:20px 20px 0 0; max-height:92vh; display:flex; flex-direction:column; transform:translateY(100%); transition:transform 0.3s cubic-bezier(0.32,0.72,0,1); }
+.panel-overlay.visible .panel { transform:translateY(0); }
+.panel-handle { width:36px; height:4px; background:var(--border); border-radius:2px; margin:12px auto 0; flex-shrink:0; }
+.panel-header { display:flex; align-items:center; justify-content:space-between; padding:12px 20px 10px; border-bottom:1px solid var(--border); flex-shrink:0; }
+.panel-title { font-family:'Bebas Neue',sans-serif; font-size:20px; letter-spacing:0.5px; }
+.panel-close { width:32px; height:32px; border-radius:50%; background:var(--surface); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:16px; color:var(--muted); }
+.panel-body { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+.panel-footer { padding:12px 20px; border-top:1px solid var(--border); flex-shrink:0; padding-bottom:max(12px, env(safe-area-inset-bottom)); }
+
+/* CONTACT PANEL */
+.contact-panel-header { display:flex; flex-direction:column; align-items:center; padding:16px 20px 12px; gap:8px; }
+.contact-panel-avatar { width:56px; height:56px; border-radius:50%; background:var(--surface); border:2px solid var(--border); display:flex; align-items:center; justify-content:center; font-family:'Bebas Neue',sans-serif; font-size:22px; color:var(--accent); overflow:hidden; }
+.contact-panel-avatar img { width:100%; height:100%; object-fit:cover; }
+.contact-panel-name { font-family:'Bebas Neue',sans-serif; font-size:24px; }
+.saldo-row { display:flex; gap:6px; flex-wrap:wrap; justify-content:center; }
+
+/* TX DETAIL */
+.tx-detail-item { padding:12px 20px; border-bottom:1px solid var(--border); }
+.tx-detail-row { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:4px; }
+.tx-detail-label { font-size:12px; color:var(--muted); }
+.tx-detail-amount { font-family:'DM Mono',monospace; font-size:16px; }
+.tx-detail-amount.red { color:var(--red); }
+.tx-detail-amount.green { color:var(--green); }
+.tx-detail-amount.pending-amt { color:var(--pending); font-style:italic; }
+.tx-detail-note { font-size:12px; color:var(--muted); font-style:italic; margin-top:3px; }
+.tx-detail-meta { font-size:11px; color:#444; margin-top:3px; }
+.tx-deadline { font-size:11px; margin-top:3px; }
+.tx-deadline.overdue { color:var(--red); }
+.tx-deadline.upcoming { color:var(--pending); }
+.tx-deadline.ok { color:var(--muted); }
+.action-row { display:flex; gap:8px; margin-top:8px; }
+.action-btn { flex:1; padding:8px; border-radius:8px; font-size:12px; font-weight:500; text-align:center; cursor:pointer; border:none; font-family:'DM Sans',sans-serif; }
+.action-btn.confirm { background:#0a1f0a; color:var(--green); }
+.action-btn.edit { background:var(--surface); color:var(--text); border:1px solid var(--border); }
+.action-btn.decline { background:#1f0a0a; color:var(--red); }
+.action-btn:active { opacity:0.7; }
+
+/* FORMS */
+.form-group { padding:10px 20px 0; }
+.form-label { font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); margin-bottom:6px; display:block; }
+.form-input { width:100%; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px 14px; color:var(--text); font-size:14px; font-family:'DM Sans',sans-serif; outline:none; }
+.form-input:focus { border-color:var(--accent); }
+.form-input::placeholder { color:var(--muted); }
+.amount-display { text-align:center; padding:16px 20px 8px; }
+.amount-big { font-family:'Bebas Neue',sans-serif; font-size:52px; line-height:1; letter-spacing:-1px; }
+.amount-placeholder { color:var(--muted); }
+.currency-row { display:flex; justify-content:center; gap:6px; padding:0 20px 8px; flex-wrap:wrap; }
+.currency-chip { padding:6px 12px; border-radius:20px; background:var(--surface); border:1px solid var(--border); font-family:'DM Mono',monospace; font-size:11px; cursor:pointer; color:var(--muted); }
+.currency-chip.selected { background:var(--accent); color:#000; border-color:var(--accent); }
+.direction-toggle { display:flex; margin:12px 20px; background:var(--surface); border-radius:10px; padding:3px; }
+.dir-btn { flex:1; padding:9px; border-radius:8px; text-align:center; font-size:13px; font-weight:500; cursor:pointer; color:var(--muted); }
+.dir-btn.active { background:var(--accent); color:#000; }
+.btn-primary { width:100%; padding:14px; background:var(--accent); color:#000; border:none; border-radius:12px; font-family:'Bebas Neue',sans-serif; font-size:18px; letter-spacing:1px; cursor:pointer; }
+.btn-primary:disabled { opacity:0.4; }
+.btn-primary:active { transform:scale(0.99); }
+
+/* INCOMING */
+.incoming-amount-box { margin:0 20px 16px; padding:20px; background:var(--surface); border-radius:14px; text-align:center; border:1px solid var(--border); }
+.incoming-label { font-size:10px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase; margin-bottom:8px; }
+.incoming-sum { font-family:'Bebas Neue',sans-serif; font-size:48px; line-height:1; }
+.incoming-sum.red { color:var(--red); }
+.incoming-sum.green { color:var(--green); }
+.incoming-currency { font-size:14px; color:var(--muted); margin-top:4px; }
+.incoming-meta { padding:0 20px; }
+.meta-row { display:flex; justify-content:space-between; font-size:13px; padding:8px 0; border-bottom:1px solid var(--border); }
+.meta-label { color:var(--muted); }
+.incoming-actions { display:flex; gap:10px; padding:16px 20px 0; }
+.incoming-btn { flex:1; padding:13px; border-radius:12px; font-family:'Bebas Neue',sans-serif; font-size:17px; letter-spacing:1px; text-align:center; cursor:pointer; border:none; }
+.incoming-btn.confirm { background:var(--accent); color:#000; }
+.incoming-btn.edit { background:var(--surface); color:var(--text); border:1px solid var(--border); }
+.incoming-btn.decline { background:#1f0a0a; color:var(--red); border:1px solid #3f1a1a; }
+.incoming-btn:active { opacity:0.7; }
+.incoming-hint { font-size:10px; color:var(--muted); text-align:center; padding:10px 20px; line-height:1.5; }
+
+/* ADD CONTACT */
+.add-contact-body { padding:20px; }
+.search-result { display:flex; align-items:center; gap:12px; padding:14px; background:var(--surface); border-radius:12px; margin-top:12px; border:1px solid var(--border); }
+.search-result-info { flex:1; }
+.search-result-name { font-size:15px; font-weight:500; }
+.search-result-email { font-size:12px; color:var(--muted); margin-top:2px; }
+
+/* EMPTY & UTILS */
+.empty-state { text-align:center; padding:60px 30px; color:var(--muted); }
+.empty-icon { font-size:48px; margin-bottom:12px; }
+.empty-title { font-family:'Bebas Neue',sans-serif; font-size:22px; color:var(--text); margin-bottom:6px; }
+.empty-sub { font-size:13px; line-height:1.6; }
+.hidden { display:none !important; }
+.loading { text-align:center; padding:40px; color:var(--muted); font-size:13px; }
+.error-msg { padding:10px 14px; background:#1f0a0a; border:1px solid #3f1a1a; border-radius:8px; color:var(--red); font-size:12px; margin-top:8px; }
+.success-msg { padding:10px 14px; background:#0a1f0a; border:1px solid #1a3f1a; border-radius:8px; color:var(--green); font-size:12px; margin-top:8px; }
+.tag { display:inline-block; font-size:9px; letter-spacing:1px; text-transform:uppercase; padding:2px 7px; border-radius:10px; margin-left:4px; }
+.tag-pending { background:#1f1f00; color:var(--pending); }
+.tag-iter { background:var(--surface); color:var(--muted); }
+.version-badge { text-align:center; padding:8px; font-size:10px; color:#333; letter-spacing:1px; }
+.config-warning { background:#1a0a00; border:1px solid #ff6600; border-radius:10px; padding:14px; margin:20px; font-size:12px; color:#ff9944; line-height:1.6; }
+input[type=number] { -moz-appearance:textfield; }
+input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner-spin-button { -webkit-appearance:none; }
+textarea.form-input { resize:none; }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="screen-login" class="screen">
+  <div id="config-warning" class="config-warning hidden">
+    ⚠️ Firebase не настроен. Заполните firebaseConfig в коде перед использованием.
+    <br>Инструкция: setup-firebase.md
+  </div>
+  <div class="login-logo">🏓</div>
+  <div class="login-title">Ping-pong<span>MoneyBall</span></div>
+  <div class="login-sub">Честный учёт долгов<br>между людьми · Beta v0.1</div>
+  <button class="btn-google" onclick="signInWithGoogle()">
+    <svg width="20" height="20" viewBox="0 0 24 24">
+      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+    </svg>
+    Войти через Google
+  </button>
+  <div class="version-badge">⚠️ Beta · данные не зашифрованы</div>
+</div>
+
+<!-- SETUP -->
+<div id="screen-setup" class="screen">
+  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px;gap:16px;">
+    <div style="font-size:48px;">👋</div>
+    <div class="setup-title">Как вас<br><span>называть?</span></div>
+    <div style="font-size:13px;color:var(--muted);text-align:center;line-height:1.5;">Это имя видят ваши контакты</div>
+    <input class="form-input" id="setup-name" type="text" placeholder="Ваше имя" maxlength="50" style="width:100%;">
+    <div id="setup-error" class="error-msg hidden"></div>
+    <button class="btn-primary" onclick="completeSetup()" style="width:100%;margin-top:8px;">ПРОДОЛЖИТЬ</button>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="screen-app" class="screen">
+  <div class="app-header">
+    <div class="app-header-title" id="header-title">MoneyBall</div>
+    <div style="display:flex;gap:8px;">
+      <div class="icon-btn" id="btn-bell" onclick="showIncomingList()" style="display:none;">
+        🔔<div class="badge" id="bell-badge">0</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notif-banner" id="notif-banner" onclick="showIncomingList()">
+    <span>🏓</span>
+    <div class="notif-banner-text">Ждут вашего подтверждения</div>
+    <div class="notif-banner-count" id="notif-count">0</div>
+  </div>
+
+  <div class="tab-content">
+    <div class="tab active" id="tab-dashboard">
+      <div id="dashboard-content"><div class="loading">Загрузка...</div></div>
+    </div>
+    <div class="tab" id="tab-contacts">
+      <div class="search-bar">
+        <input class="search-input" id="contact-search" type="text" placeholder="Поиск..." oninput="renderContacts()">
+      </div>
+      <div id="contacts-list"><div class="loading">Загрузка...</div></div>
+    </div>
+    <div class="tab" id="tab-profile">
+      <div id="profile-content"><div class="loading">Загрузка...</div></div>
+    </div>
+  </div>
+
+  <div class="bottom-nav">
+    <div class="nav-item active" id="nav-dashboard" onclick="switchTab('dashboard')">
+      <span class="nav-icon">⊞</span><span>Сводка</span>
+    </div>
+    <div class="nav-item" id="nav-contacts" onclick="switchTab('contacts')">
+      <span class="nav-icon">👥</span><span>Контакты</span>
+    </div>
+    <div class="nav-item" id="nav-profile" onclick="switchTab('profile')">
+      <span class="nav-icon">👤</span><span>Профиль</span>
+    </div>
+  </div>
+
+  <div class="fab-container hidden" id="fab-container">
+    <button class="fab" onclick="showAddContact()">+</button>
+  </div>
+</div>
+
+<!-- PANEL: CONTACT DETAIL -->
+<div class="panel-overlay" id="overlay-contact" onclick="bgClose(event,'overlay-contact')">
+  <div class="panel">
+    <div class="panel-handle"></div>
+    <div class="panel-header">
+      <div class="panel-title" id="contact-panel-title">Контакт</div>
+      <div class="panel-close" onclick="closePanel('overlay-contact')">✕</div>
+    </div>
+    <div class="panel-body" id="contact-panel-body"></div>
+    <div class="panel-footer">
+      <button class="btn-primary" onclick="showNewEntry()">+ НОВАЯ ЗАПИСЬ</button>
+    </div>
+  </div>
+</div>
+
+<!-- PANEL: NEW ENTRY -->
+<div class="panel-overlay" id="overlay-new-entry" onclick="bgClose(event,'overlay-new-entry')">
+  <div class="panel">
+    <div class="panel-handle"></div>
+    <div class="panel-header">
+      <div class="panel-title">Новая запись</div>
+      <div class="panel-close" onclick="closePanel('overlay-new-entry')">✕</div>
+    </div>
+    <div class="panel-body">
+      <div class="direction-toggle">
+        <div class="dir-btn active" id="dir-took" onclick="setDir('took')">Взял</div>
+        <div class="dir-btn" id="dir-gave" onclick="setDir('gave')">Отдал</div>
+      </div>
+      <div class="amount-display">
+        <div class="amount-big"><span id="amount-display" class="amount-placeholder">0</span></div>
+      </div>
+      <div class="currency-row" id="new-currency-chips"></div>
+      <div class="form-group">
+        <label class="form-label">Сумма</label>
+        <input class="form-input" id="entry-amount" type="number" min="0.01" step="0.01"
+          placeholder="0.00" oninput="updateAmtDisplay()" style="font-family:'DM Mono',monospace;font-size:18px;">
+      </div>
+      <div class="form-group" style="margin-top:10px;">
+        <label class="form-label">Дедлайн (необязательно)</label>
+        <input class="form-input" id="entry-deadline" type="date">
+      </div>
+      <div class="form-group" style="margin-top:10px;">
+        <label class="form-label">Заметка (необязательно)</label>
+        <textarea class="form-input" id="entry-note" rows="2" maxlength="256" placeholder="За что или по какому поводу..."></textarea>
+      </div>
+      <div id="entry-error" class="error-msg hidden" style="margin:10px 20px 0;"></div>
+      <div style="height:20px;"></div>
+    </div>
+    <div class="panel-footer">
+      <button class="btn-primary" id="btn-send" onclick="sendEntry()">ОТПРАВИТЬ →</button>
+    </div>
+  </div>
+</div>
+
+<!-- PANEL: INCOMING DETAIL -->
+<div class="panel-overlay" id="overlay-incoming">
+  <div class="panel">
+    <div class="panel-handle"></div>
+    <div class="panel-header">
+      <div class="panel-title">Входящий запрос</div>
+      <div class="panel-close" onclick="closePanel('overlay-incoming')">✕</div>
+    </div>
+    <div class="panel-body" id="incoming-body"></div>
+  </div>
+</div>
+
+<!-- PANEL: INCOMING LIST -->
+<div class="panel-overlay" id="overlay-incoming-list" onclick="bgClose(event,'overlay-incoming-list')">
+  <div class="panel">
+    <div class="panel-handle"></div>
+    <div class="panel-header">
+      <div class="panel-title">Ждут подтверждения</div>
+      <div class="panel-close" onclick="closePanel('overlay-incoming-list')">✕</div>
+    </div>
+    <div class="panel-body" id="incoming-list-body"></div>
+  </div>
+</div>
+
+<!-- PANEL: ADD CONTACT -->
+<div class="panel-overlay" id="overlay-add-contact" onclick="bgClose(event,'overlay-add-contact')">
+  <div class="panel">
+    <div class="panel-handle"></div>
+    <div class="panel-header">
+      <div class="panel-title">Добавить контакт</div>
+      <div class="panel-close" onclick="closePanel('overlay-add-contact')">✕</div>
+    </div>
+    <div class="panel-body">
+      <div class="add-contact-body">
+        <label class="form-label">Email пользователя PiPoMoBa</label>
+        <input class="form-input" id="add-email" type="email" placeholder="email@example.com" oninput="clearAddResult()">
+        <button class="btn-primary" onclick="searchContact()" style="margin-top:12px;">НАЙТИ</button>
+        <div id="add-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PANEL: EDIT TX -->
+<div class="panel-overlay" id="overlay-edit" onclick="bgClose(event,'overlay-edit')">
+  <div class="panel">
+    <div class="panel-handle"></div>
+    <div class="panel-header">
+      <div class="panel-title">Изменить и отправить обратно</div>
+      <div class="panel-close" onclick="closePanel('overlay-edit')">✕</div>
+    </div>
+    <div class="panel-body">
+      <div class="form-group" style="margin-top:12px;">
+        <label class="form-label">Сумма</label>
+        <input class="form-input" id="edit-amount" type="number" min="0.01" step="0.01"
+          style="font-family:'DM Mono',monospace;font-size:18px;">
+      </div>
+      <div class="currency-row" id="edit-currency-chips" style="margin-top:12px;"></div>
+      <div class="form-group" style="margin-top:10px;">
+        <label class="form-label">Дедлайн</label>
+        <input class="form-input" id="edit-deadline" type="date">
+      </div>
+      <div class="form-group" style="margin-top:10px;">
+        <label class="form-label">Заметка</label>
+        <textarea class="form-input" id="edit-note" rows="2" maxlength="256"></textarea>
+      </div>
+      <input type="hidden" id="edit-tx-id">
+      <div id="edit-error" class="error-msg hidden" style="margin:10px 20px 0;"></div>
+      <div style="height:20px;"></div>
+    </div>
+    <div class="panel-footer">
+      <button class="btn-primary" onclick="submitEdit()">ОТПРАВИТЬ ОБРАТНО 🏓</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ================================================================
+// ⚠️  FIREBASE CONFIG — ЗАПОЛНИТЬ ПЕРЕД ИСПОЛЬЗОВАНИЕМ
+//
+// 1. Идти на console.firebase.google.com
+// 2. Открыть проект → Project Settings → Your apps
+// 3. Скопировать firebaseConfig и вставить сюда
+// ================================================================
+const firebaseConfig = {
+  apiKey:            "AIzaSyBp6RE0t3ZhbOzv5LaT7hEhQ2p8tRJh5cs",
+  authDomain:        "pipomoneyball.firebaseapp.com",
+  projectId:         "pipomoneyball",
+  storageBucket:     "pipomoneyball.firebasestorage.app",
+  messagingSenderId: "289145392160",
+  appId:             "1:289145392160:web:a860bdd312e1bd5f930045"
+};
+// ================================================================
+
+// Check if config is filled
+const configFilled = Object.values(firebaseConfig).every(v => v !== 'ЗАПОЛНИТЬ');
+if (!configFilled) {
+  document.getElementById('config-warning').classList.remove('hidden');
+}
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db   = firebase.firestore();
+
+// ================================================================
+// STATE
+// ================================================================
+let me          = null;   // Firebase user
+let myProfile   = null;   // Firestore profile
+let contacts    = {};     // { uid: profile }
+let txs         = [];     // all transactions
+let incoming    = [];     // pending where I am receiver
+let currentCid  = null;   // current contact uid
+let newDir      = 'took';
+let newCur      = 'USD';
+let editCur     = 'USD';
+let txListener  = null;
+
+const CURRENCIES = ['USD','EUR','RUB','UAH','TRY','KZT','GBP','GEL'];
+const SYM = { USD:'$',EUR:'€',RUB:'₽',UAH:'₴',TRY:'₺',KZT:'₸',GBP:'£',GEL:'₾' };
+const s = c => SYM[c] || c;
+
+// ================================================================
+// AUTH
+// ================================================================
+async function signInWithGoogle() {
+  if (!configFilled) { alert('Сначала заполните firebaseConfig в коде файла'); return; }
+  try {
+    await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+  } catch(e) { alert('Ошибка входа: ' + e.message); }
+}
+
+async function doSignOut() {
+  if (!confirm('Выйти из аккаунта?')) return;
+  if (txListener) txListener();
+  await auth.signOut();
+}
+
+auth.onAuthStateChanged(async user => {
+  if (user) {
+    me = user;
+    const p = await getProfile(user.uid);
+    if (!p?.display_name) {
+      document.getElementById('setup-name').value = user.displayName || '';
+      showScreen('setup');
+    } else {
+      myProfile = p;
+      await initApp();
+    }
+  } else {
+    me = null; myProfile = null;
+    showScreen('login');
+  }
+});
+
+// ================================================================
+// SETUP
+// ================================================================
+async function completeSetup() {
+  const name = document.getElementById('setup-name').value.trim();
+  const errEl = document.getElementById('setup-error');
+  if (name.length < 2) {
+    errEl.textContent = 'Минимум 2 символа'; errEl.classList.remove('hidden'); return;
+  }
+  errEl.classList.add('hidden');
+  await db.doc(`users/${me.uid}`).set({
+    display_name: name,
+    email: me.email,
+    photo_url: me.photoURL || '',
+    created_at: firebase.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+  myProfile = await getProfile(me.uid);
+  await initApp();
+}
+
+// ================================================================
+// FIRESTORE
+// ================================================================
+async function getProfile(uid) {
+  const d = await db.doc(`users/${uid}`).get();
+  return d.exists ? { uid, ...d.data() } : null;
+}
+
+async function findByEmail(email) {
+  const snap = await db.collection('users')
+    .where('email','==', email.toLowerCase().trim()).limit(1).get();
+  if (snap.empty) return null;
+  const d = snap.docs[0];
+  return { uid: d.id, ...d.data() };
+}
+
+async function saveContact(uid, profile) {
+  await db.doc(`users/${me.uid}/contacts/${uid}`).set({
+    uid, display_name: profile.display_name,
+    email: profile.email, photo_url: profile.photo_url || '',
+    added_at: firebase.firestore.FieldValue.serverTimestamp(),
+  });
+}
+
+async function loadContacts() {
+  const snap = await db.collection(`users/${me.uid}/contacts`).get();
+  contacts = {};
+  snap.forEach(d => { contacts[d.id] = d.data(); });
+}
+
+function subscribeToTxs() {
+  if (txListener) txListener();
+  txListener = db.collection('transactions')
+    .where('participants','array-contains', me.uid)
+    .orderBy('updated_at','desc')
+    .onSnapshot(async snap => {
+      txs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      // Load unknown profiles
+      const unknowns = new Set();
+      txs.forEach(tx => tx.participants.forEach(uid => {
+        if (uid !== me.uid && !contacts[uid]) unknowns.add(uid);
+      }));
+      for (const uid of unknowns) {
+        const p = await getProfile(uid);
+        if (p) contacts[uid] = p;
+      }
+
+      incoming = txs.filter(tx => tx.status === 'pending' && tx.receiver_uid === me.uid);
+      updateBadge();
+      renderCurrent();
+    }, err => console.error(err));
+}
+
+async function createTx(contactUid, direction, amount, currency, note, deadline) {
+  const id = genId();
+  await db.doc(`transactions/${id}`).set({
+    id, initiator_uid: me.uid,
+    sender_uid: me.uid, receiver_uid: contactUid,
+    participants: [me.uid, contactUid],
+    direction, amount: parseFloat(amount), currency,
+    note: note||'',
+    deadline: deadline ? new Date(deadline) : null,
+    status:'pending', iteration:1,
+    created_at: firebase.firestore.FieldValue.serverTimestamp(),
+    updated_at: firebase.firestore.FieldValue.serverTimestamp(),
+    confirmed_at: null,
+  });
+}
+
+async function confirmTx(id) {
+  await db.doc(`transactions/${id}`).update({
+    status:'confirmed',
+    confirmed_at: firebase.firestore.FieldValue.serverTimestamp(),
+    updated_at: firebase.firestore.FieldValue.serverTimestamp(),
+  });
+}
+
+async function declineTx(id) {
+  await db.doc(`transactions/${id}`).update({
+    status:'declined',
+    updated_at: firebase.firestore.FieldValue.serverTimestamp(),
+  });
+}
+
+async function editTx(id, amount, currency, note, deadline) {
+  const tx = txs.find(t => t.id === id);
+  if (!tx) return;
+  await db.doc(`transactions/${id}`).update({
+    sender_uid: me.uid, receiver_uid: tx.sender_uid,
+    amount: parseFloat(amount), currency, note: note||'',
+    deadline: deadline ? new Date(deadline) : null,
+    iteration: (tx.iteration||1) + 1,
+    updated_at: firebase.firestore.FieldValue.serverTimestamp(),
+  });
+}
+
+// ================================================================
+// BALANCE
+// ================================================================
+function calcBalance() {
+  const confirmed = {}, pending = {};
+  txs.forEach(tx => {
+    if (tx.status === 'declined') return;
+    const iAm = tx.initiator_uid === me.uid;
+    const amt = iAm
+      ? (tx.direction === 'took' ? -tx.amount : tx.amount)
+      : (tx.direction === 'took' ? tx.amount : -tx.amount);
+    const t = tx.status === 'confirmed' ? confirmed : pending;
+    t[tx.currency] = (t[tx.currency]||0) + amt;
+  });
+  return { confirmed, pending };
+}
+
+function calcContactBalance(cuid) {
+  const res = {};
+  txs.forEach(tx => {
+    if (tx.status === 'declined') return;
+    if (!tx.participants.includes(cuid)) return;
+    const iAm = tx.initiator_uid === me.uid;
+    const amt = iAm
+      ? (tx.direction === 'took' ? -tx.amount : tx.amount)
+      : (tx.direction === 'took' ? tx.amount : -tx.amount);
+    if (!res[tx.currency]) res[tx.currency] = { confirmed:0, pending:0 };
+    if (tx.status === 'confirmed') res[tx.currency].confirmed += amt;
+    else res[tx.currency].pending += amt;
+  });
+  return res;
+}
+
+// ================================================================
+// UI ROUTING
+// ================================================================
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-'+id).classList.add('active');
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('tab-'+tab).classList.add('active');
+  document.getElementById('nav-'+tab).classList.add('active');
+  document.getElementById('header-title').textContent =
+    { dashboard:'MoneyBall', contacts:'Контакты', profile:'Профиль' }[tab];
+  const fab = document.getElementById('fab-container');
+  tab === 'contacts' ? fab.classList.remove('hidden') : fab.classList.add('hidden');
+  renderCurrent();
+}
+
+function renderCurrent() {
+  const active = document.querySelector('.tab.active')?.id;
+  if (active === 'tab-dashboard') renderDashboard();
+  else if (active === 'tab-contacts') renderContacts();
+  else if (active === 'tab-profile') renderProfile();
+}
+
+// ================================================================
+// DASHBOARD
+// ================================================================
+function renderDashboard() {
+  const { confirmed, pending } = calcBalance();
+  const el = document.getElementById('dashboard-content');
+  let h = '';
+
+  const iOwe  = Object.entries(confirmed).filter(([,v]) => v < -0.001);
+  const theyOwe = Object.entries(confirmed).filter(([,v]) => v > 0.001);
+
+  if (iOwe.length) {
+    h += `<div class="section-header"><span class="section-label">Должен я · подтверждено</span></div><div class="balance-block">`;
+    iOwe.forEach(([c,v]) => h += `<div class="balance-row">
+      <span class="balance-currency">${c}</span>
+      <span class="balance-amount red">−${s(c)}${Math.abs(v).toFixed(2)}</span></div>`);
+    h += `</div>`;
+  }
+
+  if (theyOwe.length) {
+    h += `<div class="section-header"><span class="section-label">Должны мне · подтверждено</span></div><div class="balance-block">`;
+    theyOwe.forEach(([c,v]) => h += `<div class="balance-row">
+      <span class="balance-currency">${c}</span>
+      <span class="balance-amount green">+${s(c)}${v.toFixed(2)}</span></div>`);
+    h += `</div>`;
+  }
+
+  if (!iOwe.length && !theyOwe.length) {
+    h += `<div style="padding:16px 20px 4px;"><span class="section-label">Баланс</span></div>
+      <div style="padding:8px 20px;font-size:13px;color:var(--muted);">Нет подтверждённых записей</div>`;
+  }
+
+  const pend = Object.entries(pending).filter(([,v]) => Math.abs(v) > 0.001);
+  if (pend.length) {
+    h += `<div class="divider"></div>
+      <div class="section-header"><span class="section-label">Ожидают подтверждения</span></div>
+      <div class="balance-block">`;
+    pend.forEach(([c,v]) => h += `<div class="balance-row">
+      <span class="balance-currency">${c}</span>
+      <span class="balance-amount pending">${v>0?'+':'−'}${s(c)}${Math.abs(v).toFixed(2)}</span></div>`);
+    h += `</div>`;
+  }
+
+  h += `<div class="thick-divider"></div>
+    <div class="section-header"><span class="section-label">Последние записи</span></div>`;
+
+  const recent = txs.filter(tx => tx.status !== 'declined').slice(0, 20);
+  if (!recent.length) {
+    h += `<div class="empty-state">
+      <div class="empty-icon">🏓</div>
+      <div class="empty-title">Записей нет</div>
+      <div class="empty-sub">Добавьте контакт и создайте первую запись</div></div>`;
+  } else {
+    h += `<div class="tx-list">`;
+    recent.forEach(tx => {
+      const cuid = tx.participants.find(u => u !== me.uid);
+      const c = contacts[cuid] || { display_name:'Неизвестный' };
+      const iAm = tx.initiator_uid === me.uid;
+      const amt = iAm ? (tx.direction==='took'?-tx.amount:tx.amount) : (tx.direction==='took'?tx.amount:-tx.amount);
+      const cls = tx.status==='pending' ? 'pending-amt' : (amt<0?'red':'green');
+      const sign = amt>=0?'+':'';
+      const isMyIn = tx.status==='pending' && tx.receiver_uid===me.uid;
+      h += `<div class="tx-item" onclick="openContact('${cuid}')">
+        <div class="tx-avatar">${c.photo_url?`<img src="${esc(c.photo_url)}">`:`${ini(c.display_name)}`}</div>
+        <div class="tx-info">
+          <div class="tx-name">${esc(c.display_name)}</div>
+          <div class="tx-meta ${tx.status==='pending'?'pending-text':''}">
+            ${tx.status==='pending'?'⏳':'✓'}
+            ${isMyIn?' · <b>подтвердите!</b>':''}
+            ${tx.iteration>1?` · 🏓#${tx.iteration}`:''}
+            · ${fmtDate(tx.updated_at)}
+          </div>
+        </div>
+        <div class="tx-amount-col">
+          <span class="tx-amount ${cls}">${sign}${s(tx.currency)}${tx.amount.toFixed(2)}</span>
+          <span class="tx-cur">${tx.currency}</span>
+        </div>
+      </div>`;
+    });
+    h += `</div>`;
+  }
+  el.innerHTML = h;
+}
+
+// ================================================================
+// CONTACTS
+// ================================================================
+function renderContacts() {
+  const q = document.getElementById('contact-search').value.toLowerCase();
+  const list = Object.values(contacts).filter(c =>
+    !q || c.display_name.toLowerCase().includes(q) || (c.email||'').toLowerCase().includes(q));
+  const el = document.getElementById('contacts-list');
+
+  if (!list.length) {
+    el.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">👥</div>
+      <div class="empty-title">Нет контактов</div>
+      <div class="empty-sub">Нажмите + чтобы добавить контакт по email</div></div>`;
+    return;
+  }
+
+  let h = '';
+  list.forEach(c => {
+    const bal = calcContactBalance(c.uid);
+    const entries = Object.entries(bal);
+    let chip = `<span class="saldo-chip zero">⚫ 0</span>`;
+    if (entries.length) {
+      const [cur, vals] = entries[0];
+      const total = (vals.confirmed||0);
+      if (total < -0.001) chip = `<span class="saldo-chip red">🔴 ${s(cur)}${Math.abs(total).toFixed(0)}</span>`;
+      else if (total > 0.001) chip = `<span class="saldo-chip green">🟢 ${s(cur)}${total.toFixed(0)}</span>`;
+    }
+    h += `<div class="contact-item" onclick="openContact('${c.uid}')">
+      <div class="tx-avatar">${c.photo_url?`<img src="${esc(c.photo_url)}">`:`${ini(c.display_name)}`}</div>
+      <div class="contact-info">
+        <div class="contact-name">${esc(c.display_name)}</div>
+        <div class="contact-email">${esc(c.email||'')}</div>
+      </div>
+      ${chip}
+    </div>`;
+  });
+  el.innerHTML = h;
+}
+
+// ================================================================
+// PROFILE
+// ================================================================
+function renderProfile() {
+  if (!myProfile) return;
+  document.getElementById('profile-content').innerHTML = `
+    <div class="profile-header">
+      <div class="profile-avatar-big">${myProfile.photo_url?`<img src="${esc(myProfile.photo_url)}">`:`${ini(myProfile.display_name)}`}</div>
+      <div>
+        <div class="profile-name">${esc(myProfile.display_name)}</div>
+        <div class="profile-email">${esc(myProfile.email||'')}</div>
+      </div>
+    </div>
+    <div class="thick-divider"></div>
+    <div class="settings-item">
+      <div class="settings-item-left"><span class="settings-icon">📊</span><span>Транзакций</span></div>
+      <span class="settings-value">${txs.length}</span>
+    </div>
+    <div class="settings-item">
+      <div class="settings-item-left"><span class="settings-icon">👥</span><span>Контактов</span></div>
+      <span class="settings-value">${Object.keys(contacts).length}</span>
+    </div>
+    <div class="settings-item">
+      <div class="settings-item-left"><span class="settings-icon">🔖</span><span>Версия</span></div>
+      <span class="settings-value">Beta v0.1</span>
+    </div>
+    <div class="thick-divider"></div>
+    <button class="btn-danger" onclick="doSignOut()">Выйти из аккаунта</button>
+    <div class="version-badge">⚠️ Beta · данные не зашифрованы · только для тестирования</div>`;
+}
+
+// ================================================================
+// CONTACT DETAIL
+// ================================================================
+function openContact(cuid) {
+  currentCid = cuid;
+  const c = contacts[cuid];
+  if (!c) return;
+  document.getElementById('contact-panel-title').textContent = c.display_name;
+
+  const bal = calcContactBalance(cuid);
+  let saldo = '';
+  if (!Object.keys(bal).length) {
+    saldo = `<span class="saldo-chip zero">⚫ В расчёте</span>`;
+  } else {
+    Object.entries(bal).forEach(([cur, v]) => {
+      const tot = v.confirmed||0, pend = v.pending||0;
+      if (tot < -0.001) saldo += `<span class="saldo-chip red">🔴 ${s(cur)}${Math.abs(tot).toFixed(2)}</span>`;
+      else if (tot > 0.001) saldo += `<span class="saldo-chip green">🟢 +${s(cur)}${tot.toFixed(2)}</span>`;
+      else saldo += `<span class="saldo-chip zero">⚫ ${cur} 0</span>`;
+      if (Math.abs(pend) > 0.001)
+        saldo += `<span class="saldo-chip" style="background:#1a1a00;color:var(--pending);">⏳ ${s(cur)}${Math.abs(pend).toFixed(2)}</span>`;
+    });
+  }
+
+  const ctxs = txs.filter(tx => tx.participants.includes(cuid) && tx.status!=='declined').slice(0,20);
+  let txHtml = '';
+  if (!ctxs.length) {
+    txHtml = `<div class="empty-state" style="padding:30px;">
+      <div class="empty-icon">📝</div><div class="empty-title" style="font-size:18px;">Нет записей</div></div>`;
+  } else {
+    ctxs.forEach(tx => {
+      const iAm = tx.initiator_uid === me.uid;
+      const amt = iAm ? (tx.direction==='took'?-tx.amount:tx.amount) : (tx.direction==='took'?tx.amount:-tx.amount);
+      const cls = tx.status==='pending' ? 'pending-amt' : (amt<0?'red':'green');
+      const sign = amt>=0?'+':'';
+      const lbl = amt<0?'Взял у него/неё':'Отдал ему/ей';
+      const isMyIn = tx.status==='pending' && tx.receiver_uid===me.uid;
+      const isMyOut = tx.status==='pending' && tx.sender_uid===me.uid;
+
+      let dlHtml = '';
+      if (tx.deadline) {
+        const dl = tx.deadline.toDate ? tx.deadline.toDate() : new Date(tx.deadline);
+        const now = new Date();
+        const over = dl < now;
+        const days = Math.ceil((dl-now)/(1000*60*60*24));
+        const dlCls = over?'overdue':(days<=3?'upcoming':'ok');
+        dlHtml = `<div class="tx-deadline ${dlCls}">📅 Дедлайн: ${dl.toLocaleDateString('ru-RU')}${over?' · ⚠️ просрочено':days<=3?` · ${days} дн.`:''}</div>`;
+      }
+
+      txHtml += `<div class="tx-detail-item">
+        <div class="tx-detail-row">
+          <span class="tx-detail-label">${lbl}
+            ${tx.status==='pending'?`<span class="tag tag-pending">⏳</span>`:''}
+            ${tx.iteration>1?`<span class="tag tag-iter">🏓#${tx.iteration}</span>`:''}
+          </span>
+          <span class="tx-detail-amount ${cls}">${sign}${s(tx.currency)}${tx.amount.toFixed(2)}</span>
+        </div>
+        ${tx.note?`<div class="tx-detail-note">💬 ${esc(tx.note)}</div>`:''}
+        ${dlHtml}
+        <div class="tx-detail-meta">${fmtDate(tx.updated_at)}</div>
+        ${isMyIn?`<div class="action-row">
+          <button class="action-btn confirm" onclick="doConfirm('${tx.id}')">✓ Да</button>
+          <button class="action-btn edit" onclick="doEdit('${tx.id}')">✎ Изменить</button>
+          <button class="action-btn decline" onclick="doDecline('${tx.id}')">✕</button>
+        </div>`:''}
+        ${isMyOut?`<div class="tx-detail-meta" style="color:var(--pending);margin-top:4px;">⏳ Ждёт ${esc(c.display_name)}</div>`:''}
+      </div>`;
+    });
+  }
+
+  document.getElementById('contact-panel-body').innerHTML = `
+    <div class="contact-panel-header">
+      <div class="contact-panel-avatar">${c.photo_url?`<img src="${esc(c.photo_url)}">`:`${ini(c.display_name)}`}</div>
+      <div class="contact-panel-name">${esc(c.display_name)}</div>
+      <div class="saldo-row">${saldo}</div>
+    </div>
+    <div class="divider"></div>${txHtml}<div style="height:20px;"></div>`;
+
+  showPanel('overlay-contact');
+}
+
+// ================================================================
+// NEW ENTRY
+// ================================================================
+function showNewEntry() {
+  newDir = 'took'; newCur = 'USD';
+  document.getElementById('dir-took').classList.add('active');
+  document.getElementById('dir-gave').classList.remove('active');
+  document.getElementById('entry-amount').value = '';
+  document.getElementById('entry-deadline').value = '';
+  document.getElementById('entry-note').value = '';
+  document.getElementById('entry-error').classList.add('hidden');
+  document.getElementById('amount-display').textContent = '0';
+  document.getElementById('amount-display').classList.add('amount-placeholder');
+  renderChips('new-currency-chips', 'new');
+  showPanel('overlay-new-entry');
+}
+
+function setDir(d) {
+  newDir = d;
+  document.getElementById('dir-took').classList.toggle('active', d==='took');
+  document.getElementById('dir-gave').classList.toggle('active', d==='gave');
+}
+
+function setCur(c, type) {
+  if (type==='new') { newCur=c; renderChips('new-currency-chips','new'); }
+  else { editCur=c; renderChips('edit-currency-chips','edit'); }
+}
+
+function renderChips(id, type) {
+  const cur = type==='new' ? newCur : editCur;
+  document.getElementById(id).innerHTML = CURRENCIES.map(c =>
+    `<div class="currency-chip ${c===cur?'selected':''}" onclick="setCur('${c}','${type}')">${c}</div>`
+  ).join('');
+}
+
+function updateAmtDisplay() {
+  const v = parseFloat(document.getElementById('entry-amount').value);
+  const el = document.getElementById('amount-display');
+  if (!v || v<=0) { el.textContent='0'; el.classList.add('amount-placeholder'); }
+  else { el.textContent=`${s(newCur)}${v.toFixed(2)}`; el.classList.remove('amount-placeholder'); }
+}
+
+async function sendEntry() {
+  const amount = parseFloat(document.getElementById('entry-amount').value);
+  const deadline = document.getElementById('entry-deadline').value;
+  const note = document.getElementById('entry-note').value.trim();
+  const errEl = document.getElementById('entry-error');
+  if (!amount || amount<=0) { errEl.textContent='Введите сумму'; errEl.classList.remove('hidden'); return; }
+  if (!currentCid) { errEl.textContent='Контакт не выбран'; errEl.classList.remove('hidden'); return; }
+  errEl.classList.add('hidden');
+  const btn = document.getElementById('btn-send');
+  btn.disabled=true; btn.textContent='Отправка...';
+  try {
+    await createTx(currentCid, newDir, amount, newCur, note, deadline);
+    closePanel('overlay-new-entry');
+  } catch(e) {
+    errEl.textContent='Ошибка: '+e.message; errEl.classList.remove('hidden');
+  }
+  btn.disabled=false; btn.textContent='ОТПРАВИТЬ →';
+}
+
+// ================================================================
+// CONFIRM / DECLINE / EDIT
+// ================================================================
+async function doConfirm(id) {
+  if (!confirm('Подтвердить? После подтверждения запись нельзя изменить.')) return;
+  await confirmTx(id);
+  openContact(currentCid);
+}
+
+async function doDecline(id) {
+  if (!confirm('Отклонить? Запись исчезнет у обоих.')) return;
+  await declineTx(id);
+  openContact(currentCid);
+}
+
+function doEdit(id) {
+  const tx = txs.find(t => t.id===id);
+  if (!tx) return;
+  editCur = tx.currency;
+  document.getElementById('edit-amount').value = tx.amount;
+  document.getElementById('edit-note').value = tx.note||'';
+  document.getElementById('edit-tx-id').value = id;
+  document.getElementById('edit-error').classList.add('hidden');
+  if (tx.deadline) {
+    const dl = tx.deadline.toDate ? tx.deadline.toDate() : new Date(tx.deadline);
+    document.getElementById('edit-deadline').value = dl.toISOString().split('T')[0];
+  } else {
+    document.getElementById('edit-deadline').value = '';
+  }
+  renderChips('edit-currency-chips','edit');
+  showPanel('overlay-edit');
+}
+
+async function submitEdit() {
+  const id = document.getElementById('edit-tx-id').value;
+  const amount = parseFloat(document.getElementById('edit-amount').value);
+  const note = document.getElementById('edit-note').value.trim();
+  const deadline = document.getElementById('edit-deadline').value;
+  const errEl = document.getElementById('edit-error');
+  if (!amount||amount<=0) { errEl.textContent='Введите сумму'; errEl.classList.remove('hidden'); return; }
+  errEl.classList.add('hidden');
+  try {
+    await editTx(id, amount, editCur, note, deadline);
+    closePanel('overlay-edit');
+    openContact(currentCid);
+  } catch(e) {
+    errEl.textContent='Ошибка: '+e.message; errEl.classList.remove('hidden');
+  }
+}
+
+// ================================================================
+// INCOMING
+// ================================================================
+function updateBadge() {
+  const n = incoming.length;
+  document.getElementById('bell-badge').textContent = n;
+  document.getElementById('btn-bell').style.display = n>0?'flex':'none';
+  document.getElementById('notif-banner').classList.toggle('visible', n>0);
+  document.getElementById('notif-count').textContent = n;
+}
+
+function showIncomingList() {
+  const el = document.getElementById('incoming-list-body');
+  if (!incoming.length) {
+    el.innerHTML=`<div class="empty-state"><div class="empty-icon">✅</div><div class="empty-title">Всё подтверждено</div></div>`;
+  } else {
+    let h='';
+    incoming.forEach(tx => {
+      const c = contacts[tx.sender_uid] || { display_name:'Неизвестный' };
+      h += `<div class="tx-detail-item">
+        <div class="tx-detail-row">
+          <span class="tx-detail-label">${esc(c.display_name)}</span>
+          <span class="tx-detail-amount pending-amt">${s(tx.currency)}${tx.amount.toFixed(2)}</span>
+        </div>
+        ${tx.note?`<div class="tx-detail-note">💬 ${esc(tx.note)}</div>`:''}
+        ${tx.iteration>1?`<div class="tx-detail-meta">🏓 Итерация #${tx.iteration}</div>`:''}
+        <div class="action-row">
+          <button class="action-btn confirm" onclick="listConfirm('${tx.id}')">✓ Да</button>
+          <button class="action-btn edit" onclick="listEdit('${tx.id}')">✎</button>
+          <button class="action-btn decline" onclick="listDecline('${tx.id}')">✕</button>
+        </div>
+      </div>`;
+    });
+    el.innerHTML=h;
+  }
+  showPanel('overlay-incoming-list');
+}
+
+async function listConfirm(id) {
+  if (!confirm('Подтвердить?')) return;
+  await confirmTx(id);
+}
+async function listDecline(id) {
+  if (!confirm('Отклонить?')) return;
+  await declineTx(id);
+}
+function listEdit(id) {
+  closePanel('overlay-incoming-list');
+  setTimeout(() => {
+    // Find contact
+    const tx = txs.find(t => t.id===id);
+    if (tx) {
+      currentCid = tx.participants.find(u => u !== me.uid);
+      doEdit(id);
+    }
+  }, 350);
+}
+
+// ================================================================
+// ADD CONTACT
+// ================================================================
+function showAddContact() {
+  document.getElementById('add-email').value='';
+  document.getElementById('add-result').innerHTML='';
+  showPanel('overlay-add-contact');
+}
+function clearAddResult() { document.getElementById('add-result').innerHTML=''; }
+
+async function searchContact() {
+  const email = document.getElementById('add-email').value.trim();
+  const el = document.getElementById('add-result');
+  if (!email) { el.innerHTML=`<div class="error-msg">Введите email</div>`; return; }
+  if (email===me.email) { el.innerHTML=`<div class="error-msg">Это ваш email</div>`; return; }
+  el.innerHTML=`<div class="loading">Поиск...</div>`;
+  const found = await findByEmail(email);
+  if (!found) { el.innerHTML=`<div class="error-msg">Пользователь не найден. Нужно зарегистрироваться в PiPoMoBa.</div>`; return; }
+  if (contacts[found.uid]) { el.innerHTML=`<div class="success-msg">✓ Уже в контактах</div>`; return; }
+  el.innerHTML=`<div class="search-result">
+    <div class="tx-avatar">${found.photo_url?`<img src="${esc(found.photo_url)}">`:`${ini(found.display_name)}`}</div>
+    <div class="search-result-info">
+      <div class="search-result-name">${esc(found.display_name)}</div>
+      <div class="search-result-email">${esc(found.email)}</div>
+    </div>
+    <button class="btn-primary" style="width:auto;padding:8px 16px;font-size:14px;" onclick="addContact('${found.uid}')">Добавить</button>
+  </div>`;
+}
+
+async function addContact(uid) {
+  const p = await getProfile(uid);
+  if (!p) return;
+  await saveContact(uid, p);
+  contacts[uid] = p;
+  closePanel('overlay-add-contact');
+  renderContacts();
+}
+
+// ================================================================
+// PANELS
+// ================================================================
+function showPanel(id) { document.getElementById(id).classList.add('visible'); }
+function closePanel(id) { document.getElementById(id).classList.remove('visible'); }
+function bgClose(e, id) { if (e.target.id===id) closePanel(id); }
+
+// ================================================================
+// INIT
+// ================================================================
+async function initApp() {
+  showScreen('app');
+  await loadContacts();
+  subscribeToTxs();
+  renderProfile();
+}
+
+// ================================================================
+// UTILS
+// ================================================================
+function ini(name) {
+  if (!name) return '?';
+  return name.split(' ').map(w=>w[0]||'').join('').toUpperCase().slice(0,2);
+}
+function esc(str) {
+  if (!str) return '';
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtDate(ts) {
+  if (!ts) return '';
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  const diff = Date.now()-d;
+  if (diff<60000) return 'только что';
+  if (diff<3600000) return `${Math.floor(diff/60000)} мин.`;
+  if (diff<86400000) return `${Math.floor(diff/3600000)} ч.`;
+  return d.toLocaleDateString('ru-RU');
+}
+function genId() {
+  return Date.now().toString(36)+Math.random().toString(36).substr(2,9);
+}
+</script>
+
+<!--
+================================================================
+FIRESTORE RULES — вставить в Firebase Console → Firestore → Rules
+================================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /users/{uid} {
+      allow read: if request.auth != null;
+      allow write: if request.auth.uid == uid;
+    }
+
+    match /users/{uid}/contacts/{cid} {
+      allow read, write: if request.auth.uid == uid;
+    }
+
+    match /transactions/{txId} {
+      allow read: if request.auth != null &&
+        request.auth.uid in resource.data.participants;
+      allow create: if request.auth != null &&
+        request.auth.uid in request.resource.data.participants;
+      allow update: if request.auth != null &&
+        request.auth.uid in resource.data.participants;
+    }
+  }
+}
+
+================================================================
+FIRESTORE INDEX — создать в Firebase Console → Firestore → Indexes
+================================================================
+
+Collection: transactions
+Fields:
+  participants  Arrays
+  updated_at    Descending
+Query scope: Collection
+
+================================================================
+-->
+
+</body>
+</html>
