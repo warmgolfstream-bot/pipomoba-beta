@@ -639,6 +639,11 @@ async function editTx(id, amount, currency, note, deadline) {
     amount: parseFloat(amount), currency, note: note||'',
     deadline: deadline ? new Date(deadline) : null,
     iteration: (tx.iteration||1) + 1,
+    // Сохраняем предыдущие значения для отображения diff
+    prev_amount: tx.amount,
+    prev_currency: tx.currency,
+    prev_note: tx.note||'',
+    prev_deadline: tx.deadline||null,
     updated_at: firebase.firestore.FieldValue.serverTimestamp(),
   });
 }
@@ -1069,13 +1074,37 @@ function showIncomingList() {
     let h='';
     incoming.forEach(tx => {
       const c = contacts[tx.sender_uid] || { display_name:'Неизвестный' };
+
+      // Показываем diff если это пинг-понг (есть предыдущие значения)
+      let diffHtml = '';
+      if (tx.iteration > 1 && tx.prev_amount !== undefined) {
+        diffHtml = `<div style="background:#1a1200;border-radius:8px;padding:8px 10px;margin-top:8px;font-size:11px;line-height:1.8;">
+          <div style="color:var(--pending);font-weight:500;margin-bottom:4px;">🏓 Изменено (итерация #${tx.iteration}):</div>`;
+        if (tx.prev_amount !== tx.amount || tx.prev_currency !== tx.currency) {
+          diffHtml += `<div style="color:var(--muted);">Сумма: <span style="color:var(--red);text-decoration:line-through;">${s(tx.prev_currency)}${tx.prev_amount?.toFixed(2)}</span> → <span style="color:var(--green);">${s(tx.currency)}${tx.amount.toFixed(2)}</span></div>`;
+        }
+        if (tx.prev_note !== (tx.note||'')) {
+          const pn = tx.prev_note || '(не было)';
+          const nn = tx.note || '(удалено)';
+          diffHtml += `<div style="color:var(--muted);">Заметка: <span style="color:var(--red);text-decoration:line-through;">${esc(pn)}</span> → <span style="color:var(--green);">${esc(nn)}</span></div>`;
+        }
+        const prevDl = tx.prev_deadline ? (tx.prev_deadline.toDate ? tx.prev_deadline.toDate() : new Date(tx.prev_deadline)) : null;
+        const newDl = tx.deadline ? (tx.deadline.toDate ? tx.deadline.toDate() : new Date(tx.deadline)) : null;
+        const prevDlStr = prevDl ? prevDl.toLocaleDateString('ru-RU') : '(не было)';
+        const newDlStr = newDl ? newDl.toLocaleDateString('ru-RU') : '(удалено)';
+        if (prevDlStr !== newDlStr) {
+          diffHtml += `<div style="color:var(--muted);">Дедлайн: <span style="color:var(--red);text-decoration:line-through;">${prevDlStr}</span> → <span style="color:var(--green);">${newDlStr}</span></div>`;
+        }
+        diffHtml += `</div>`;
+      }
+
       h += `<div class="tx-detail-item">
         <div class="tx-detail-row">
           <span class="tx-detail-label">${esc(c.display_name)}</span>
           <span class="tx-detail-amount pending-amt">${s(tx.currency)}${tx.amount.toFixed(2)}</span>
         </div>
         ${tx.note?`<div class="tx-detail-note">💬 ${esc(tx.note)}</div>`:''}
-        ${tx.iteration>1?`<div class="tx-detail-meta">🏓 Итерация #${tx.iteration}</div>`:''}
+        ${diffHtml}
         <div class="action-row">
           <button class="action-btn confirm" onclick="listConfirm('${tx.id}')">✓ Да</button>
           <button class="action-btn edit" onclick="listEdit('${tx.id}')">✎</button>
@@ -1091,10 +1120,20 @@ function showIncomingList() {
 async function listConfirm(id) {
   if (!confirm('Подтвердить?')) return;
   await confirmTx(id);
+  // Баг #2 фикс: принудительно обновляем UI
+  incoming = incoming.filter(t => t.id !== id);
+  updateBadge();
+  renderDashboard();
+  showIncomingList(); // перерисовать список
 }
 async function listDecline(id) {
   if (!confirm('Отклонить?')) return;
   await declineTx(id);
+  // Баг #2 фикс: принудительно обновляем UI
+  incoming = incoming.filter(t => t.id !== id);
+  updateBadge();
+  renderDashboard();
+  showIncomingList();
 }
 function listEdit(id) {
   closePanel('overlay-incoming-list');
